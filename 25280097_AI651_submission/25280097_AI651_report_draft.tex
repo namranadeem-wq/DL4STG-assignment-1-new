@@ -1,0 +1,159 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=19mm]{geometry}
+\usepackage{graphicx,booktabs,tabularx,amsmath,hyperref,xcolor,fancyhdr}
+\hypersetup{colorlinks=true,urlcolor=blue}
+\definecolor{navy}{RGB}{28,52,80}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{AI651 Assignment 1}\fancyhead[R]{Namra Nadeem | 25280097}\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}\setlength{\parindent}{0pt}\setlength{\parskip}{5pt}
+\newcommand{\fig}[3]{\begin{center}\includegraphics[width=#2\linewidth]{figures/#1.pdf}\par\small #3\end{center}}
+\begin{document}
+{\LARGE\bfseries\color{navy} Forecasting with Temporal Inductive Biases}\par
+{\large AI651 -- Deep Learning for Space, Time and Graphs}\par
+Namra Nadeem \quad Roll number: 25280097
+
+\textbf{Public repository:} \textcolor{red}{Pending: insert the actual public GitHub URL.}
+
+\textbf{Draft status.} Numerical Task 1 evidence was recovered from the executed \texttt{Assignment1 (2).ipynb}; Task 2 evidence comes from the executed Task 2 notebook and recorded Colab outputs. The executed Task 2 notebook has been checked; the checkpoint, predictions and metric exports match the recorded results; the leaderboard receipt confirms the submission. The Task 1 notebook contains full-preset evidence but mixes CPU and CUDA sessions. Required pre-experiment predictions were not found in the supplied notebook; they must not be reconstructed and described as contemporaneous predictions.
+
+\section*{Task 1: protocol and Response 1A}
+The four-station synthetic world combines slow drift, repeating vibration and noise, sampled at 20 Hz. A 96-step context predicts 48 steps. Training uses Stations 1--3 in target times $[0,9600)$; validation uses $[9600,12480)$ and final test uses $[12480,15360)$. Station 4 is excluded from fitting and scale selection. Context/target windows stay inside one operating regime. Anchoring removes the last context value; scaling uses established-station training data only. The saved run reports \texttt{preset=full}, data/model seeds 0, and 650/105/105 eligible training/validation/test origins.
+
+\textbf{Pre-run ordering:} not found in the provided notebook. If a genuine earlier record exists, insert it here. The following is an interpretation of measurements, not a pre-run prediction.
+
+\begin{center}\small
+\begin{tabular}{lrrrr}\toprule
+Forecaster & Established RMSE & Established MSE & Held-out RMSE & Held-out MSE\\\midrule
+Shared ridge & .767 & .588 & .876 & .767\\
+Sensor-specific ridge & .768 & .590 & unavailable & unavailable\\
+Period-routed ridge & .166 & .028 & .173 & .030\\
+Raw Attention & .441 & .194 & .640 & .409\\\bottomrule
+\end{tabular}\end{center}
+Errors are on validation, in $(\mathrm{m/s^2})$ for RMSE and $(\mathrm{m/s^2})^2$ for MSE. The established ordering is period-routed ridge, Raw Attention, shared ridge, sensor-specific ridge; the last two are effectively tied at the reported precision. Held-out ordering is routed ridge, Attention, shared ridge. Sensor-specific ridge has no fitted map for Station 4. Routed ridge improves established RMSE over shared ridge by .601 (78.4\%); Attention improves it by .326 (42.5\%). Their held-out improvements are .703 (80.3\%) and .236 (26.9\%), respectively.
+
+\begin{center}\small
+\begin{tabular}{lrrr|rrr}\toprule
+ & \multicolumn{3}{c}{Established: A / B / C} & \multicolumn{3}{c}{Held-out: A / B / C}\\
+Model & A & B & C & A & B & C\\\midrule
+Shared ridge & .805 & .854 & .621 & .909 & .982 & .713\\
+Sensor-specific & .804 & .852 & .630 & -- & -- & --\\
+Period-routed & .181 & .164 & .152 & .184 & .182 & .150\\
+Raw Attention & .432 & .469 & .419 & .675 & .592 & .649\\\bottomrule
+\end{tabular}\end{center}
+Routed ridge wins for every product/population. Station identity does not resolve within-station pace changes; conditioning on estimated period does. Attention builds context-dependent mixing but must learn temporal structure that routing receives explicitly.
+
+\section*{Response 1B: a context-dependent forecasting rule}
+In Output 1.2, the same station has periods 16.135 (Product A) and 30.093 samples (Product C). Shared ridge's example RMSEs are .779 and .448, versus routed ridge's .232 and .150. Its forecast has visibly weaker oscillation amplitude and mismatched continuation: one fitted operator compromises across paces. Raw Attention's example RMSEs are .296 and .134; one favorable window does not reverse the aggregate ranking. Fixed learned $W_Q,W_K,W_V$ generate different $Q,K,V$ for different inputs, so $\operatorname{softmax}(QK^\top/\sqrt{d_h})$ changes. Output 1.3 reports mean/max absolute weight differences .012/.403. This supports input-dependent mixing, not physical-period recovery. Shared ridge always applies the same fitted $\widehat W$.
+
+\newpage
+\section*{Response 2: separate slow structure from repetition}
+The implementation uses a centered odd-width moving average, replicates endpoints and returns $(S,T)$ with $S=x-T$, preserving $S+T=x$. The selected width is \textbf{41}. In Output 2.1, wider windows suppress more vibration in the trend and retain a larger oscillating remainder; residual standard deviation rises from .578 at width 17 to 1.572 at width 41. Endpoint replication produces visible boundary differences. The remainder is an estimate, not the generator's true repeating component.
+
+\begin{center}\small
+\begin{tabular}{lrr}\toprule
+Representation & Recovery within one sample & Median absolute error\\\midrule
+Raw & .687 & .525\\
+Width 17 & .980 & .157\\
+Width 25 & .989 & .122\\
+Width 33 & .993 & .142\\
+Width 41 (selected) & .998 & .216\\\bottomrule
+\end{tabular}\end{center}
+The selected width maximizes recovery within one sample, not minimum median error. This training-only oracle diagnostic tests the known synthetic period without using validation or Station 4 to select the width. True periods score the diagnostic; they do not enter the neural forecaster. The bias is sensible because drift changes on a 240-sample scale while vibration periods span 14--36 samples.
+
+Decomposition reduces validation RMSE from .441 to .313 on established stations (29.0\%) and .640 to .457 on Station 4 (28.6\%). It helps all products: established A/B/C RMSE changes .432/.469/.419 to .296/.356/.283; held-out changes .675/.592/.649 to .404/.517/.441. An abrupt level shift would violate the smooth-trend assumption: the fixed filter smears the shift and leaks it into the remainder. A change-point-aware piecewise trend would accommodate shifts but require reliable boundary detection.
+
+\section*{Response 3: mix by temporal delay}
+The aggregation reads $v_{(t-\tau)\bmod L}$ and combines selected delays with normalized weights. The toy FFT scores for $[1,3,1,3]$ are $[4,-4,4,-4]$, matching direct circular correlation. For values $[10,20,30,40]$, delays $[1,3]$ and weights $[.75,.25]$, the aggregation is $[35,15,25,25]$; its first entry verifies the shift direction. Numerical and gradient checks pass.
+
+Output 3.2 shows recurrence near lags 16 and 32, corresponding to $P=16.135$ and $2P=32.269$. Residual correlations are .896 and .897. Removing the smooth ramp suppresses broad drift-driven similarity and reveals aligned oscillation peaks. These are correlations of signal values, \emph{not learned query/key scores}. Quickly drifting periods would spread recurrence across lags, while an isolated transient has no repeated displacement; a small set of circular shifts can blur such events and create artificial wraparound relationships.
+
+\section*{Response 4: compare and deploy}
+\textbf{Pre-run hypothesis:} not found in the supplied notebook; recover an authentic earlier note if one exists. The following interpretation is retrospective (under 200 words).
+
+Both switches improve aggregate validation error. Decomposition lowers established MSE by .096, delay mixing by .143, and their combination by .155 from the .194 baseline: the combined improvement is smaller than the .239 sum, consistent with overlapping benefits. Held-out improvements similarly overlap (.200, .296, and .350). This comparison does not identify a causal mechanism. Horizon errors generally rise, particularly for raw Attention; routed ridge remains low and the combined neural model is usually strongest among neural variants. Combined modeling is not uniformly best: its contrasting Station-2/Product-A example has RMSE .407 versus .258 for raw Attention.
+
+Select period-routed ridge for both populations: validation RMSE .166/.173, 59,904 parameters, and .055 seconds reported fitting time, versus the best neural variant's .197/.243, 373,026 parameters and 111.262 seconds. These are mixed-device recorded runtimes, not a controlled hardware speed comparison. Final test RMSE is .161 on established stations and .183 on Station 4 (MSE .026/.033). The period-specific inductive bias outperforms extra neural flexibility in this benchmark.
+
+\newpage
+\section*{Task 1: numerical comparison and supporting figures}
+\begin{center}\small
+\begin{tabular}{lrrrrrr}\toprule
+ & \multicolumn{2}{c}{Established validation} & \multicolumn{2}{c}{Held-out validation} & &\\
+Model & RMSE & MSE & RMSE & MSE & Params & Fit (s)\\\midrule
+Raw Attention & .441 & .194 & .640 & .409 & 368,368 & 74.881\\
+Attention + decomposition & .313 & .098 & .457 & .209 & 373,024 & 92.485\\
+Raw delay mixer & .227 & .051 & .336 & .113 & 368,370 & 92.252\\
+Autoformer-inspired & .197 & .039 & .243 & .059 & 373,026 & 111.262\\\bottomrule
+\end{tabular}\end{center}
+\fig{1.2}{.90}{Figure 1 (Output 1.2): same station at different operating paces.}
+\fig{1.3}{1}{Figure 2 (Output 1.3): context-dependent Attention weights.}
+\fig{2.1}{1}{Figure 3 (Output 2.1): moving-average width changes trend and remainder.}
+
+\newpage
+\section*{Task 1: decomposition, recurrence and horizon evidence}
+\fig{2.2}{.48}{Figure 4 (Output 2.2): training-only oracle period recovery.}
+\fig{2.3}{.64}{Figure 5 (Output 2.3): contrasting decomposition forecast cases.}
+\fig{3.2}{.94}{Figure 6 (Output 3.2): signal-level recurrence, not learned scores.}
+\fig{4.2}{.94}{Figure 7 (Output 4.2): validation errors along the forecast horizon.}
+
+\newpage
+\section*{Task 2: design and validation protocol}
+The anonymized target has 43,656 observed non-negative values; the hidden horizon consists of indices 43,657--43,824. Ten external variables span history and horizon. Known future external values are explicitly permitted. Initial checks found contiguous indices, no duplicate indices, no missing training/external values, and 168 intentionally empty test targets. Target mean/std over all observed history are approximately 98.174/90.835 (sample standard deviation); range is 0--994.
+
+Training uses indices 1--40,296. Validation uses 40,297--43,656, split into 20 non-overlapping 168-step target blocks. Context length is 336 and decoder observed length is 168. Training windows have stride 24, giving 1,659 windows. Every training target finishes before validation. Validation is rolling-origin: later origins may use earlier observed validation targets as context, but the fitted parameters/scalers remain unchanged. Standardization statistics use only the training region (target mean 98.677, population std 90.567). No hidden target is used.
+
+\textbf{Architecture.} The model adapts the authors' Autoformer repository at commit\\{\small\texttt{51c7d416ae120b805fd5beef2f4ccf7de496a6ff}}.  It retains progressive moving-average decomposition and FFT Auto-Correlation with delay aggregation, an encoder--decoder, and decoder trend accumulation. Width 32, four heads, FFN width 64, one encoder and one decoder layer, moving-average width 25, factor 2, GELU and dropout .1 form a compact starting design. Target embedding is a circular kernel-3 convolution. Separate encoder/decoder linear projections embed standardized external measurements; no undisclosed calendar features are invented. Future decoder target slots are zeros, never labels. The decoder also receives the observed 168-step target history and, when enabled, external features across its history and horizon.
+
+\textbf{Training.} AdamW uses learning rate $.001$, weight decay $.0001$, batch size 32 and gradient clipping at 1. The loss is standardized target MSE, matching squared-error evaluation. Each validation experiment runs at most 10 epochs, stopping after three epochs without lower validation RMSE. Predictions are converted back to original units and clipped at zero for all models consistently. Track MAE, RMSE and sMAPE, defining a pair of zeros to contribute zero to sMAPE. Three seeds (0,1,2) evaluate each mode. Reported metrics use each seed's best validation checkpoint; they are model-selection estimates on one validation region, not an independent test score.
+
+\begin{center}\small
+\begin{tabular}{lrrr}\toprule
+Baseline & MAE & RMSE & sMAPE (\%)\\\midrule
+Training mean & 72.049 & 93.990 & 82.662\\
+Last 168 mean & 70.544 & 94.229 & 80.659\\
+Repeat last 168 & 92.980 & 131.254 & 96.531\\
+Last value & 103.557 & 160.225 & 91.788\\\bottomrule
+\end{tabular}\end{center}
+Repeating a 168-step history is a weak forecast in this region; this does not prove that the series has no useful periodicity. The training mean is the lowest-RMSE baseline.
+
+\section*{Task 2: required external-data ablation}
+\begin{center}\small
+\begin{tabular}{lrrrr}\toprule
+Mode & RMSE mean $\pm$ SD & MAE mean & sMAPE mean & Params\\\midrule
+No external & $93.361\pm .509$ & 70.328 & 80.443 & 21,313\\
+Historical only & $93.364\pm 1.057$ & 70.497 & 80.497 & 21,953\\
+Historical + future & $70.989\pm 2.848$ & 50.914 & 69.514 & 21,953\\\bottomrule
+\end{tabular}\end{center}
+SD is sample standard deviation across seeds, not a confidence interval. Historical-only training and evaluation replace standardized future-feature inputs with zeros (training means); historical encoder/decoder features remain available. Thus the extra value of future measurements is assessed with independently trained models under matched settings, rather than masking only at inference.
+
+\newpage
+\section*{Task 2: evidence, final refit and limitations}
+\begin{center}\small
+\begin{tabular}{rrrrr}\toprule
+Seed & No external RMSE & History-only RMSE & History+future RMSE & Future gain\\\midrule
+0 & 93.667 & 92.155 & 72.134 & 20.022\\
+1 & 92.773 & 94.120 & 67.747 & 26.373\\
+2 & 93.643 & 93.815 & 73.087 & 20.729\\\bottomrule
+\end{tabular}\end{center}
+Future gain is history-only RMSE minus history+future RMSE. Compared with no external features, full external inputs reduce mean RMSE by 22.372 (24.0\%) and add 640 trainable parameters. History-only inputs provide negligible average improvement. Full inputs improve seed-averaged block RMSE in 16/20 validation blocks; the largest reduction is 64.803 in block 16, while block 2 worsens by 5.178. This supports using available future external measurements for this architecture/protocol; it does not identify which feature causes the gain, establish independence between blocks, or guarantee hidden-horizon performance.
+
+\textbf{Final model.} The selected history-plus-future configuration is refit from scratch on all 43,656 observed targets, with scalers re-estimated from that history. Seed 0 is used rather than selecting the lowest-RMSE seed. Seven final epochs are the median best epochs (10,3,7) from the three full-external experiments. There is no early stopping on hidden targets. Final training takes 13.39 seconds on a Tesla T4; final standardized training MSE is .6270, which is not hidden-test error. The model has 21,953 trainable parameters and produces 168 finite, non-negative values in chronological order. Initial/final zeros arise from the same non-negative clipping used in validation. No individual prediction is edited by hand.
+
+\textbf{Epoch accounting.} The nine validation/ablation runs execute 76 epochs in total: no external 8/10/8, history+future 10/6/10, history-only 10/7/7. Final refit adds 7, yielding 83 project-wide executed epochs. For the selected seed-0 full-external model lineage, declare $E=10+7=17$, counting its validation fit and full-history refit; $P=21,953$. Disclose all other experiment costs separately, rather than describing the final refit as the entire experiment. The model is not an ensemble.
+
+\textbf{Leaderboard result (screenshot supplied 5 October 2026).} Roll number 25280097 appears at rank 32 with MAE 68.5591, RMSE 99.4716, sMAPE 81.04\%, and ranking score 99.4801. The row records 21,953 parameters, 17 epochs, and 1/5 submissions used. Rank is a snapshot, not a permanent standing. Hidden-horizon RMSE exceeds the validation mean by 28.4826 (40.1\%); these cover different populations of forecast origins, so the gap demonstrates limited generalization rather than a like-for-like paired comparison. Only the generated 168-value text is to be pasted; do not use leaderboard feedback as a tuning dataset. The assignment allows at most five submissions. Validation conclusions concern the final 3,360 observed targets and may not generalize to other regions or regime changes. Best-checkpoint selection also makes validation estimates optimistic relative to a fresh test set.
+
+\newpage
+\section*{Task 2: saved forecast figures}
+\fig{task2_validation}{.95}{Figure 8: validation blocks 1, 10 and 20, seed 0.}
+\fig{task2_final}{1}{Figure 9: observed history and final 168-step forecast.}
+These are plots saved in the executed notebook. The final forecast is not compared with hidden target values. Initial and terminal zeros are imposed by non-negative clipping.
+
+\newpage
+\section*{Attribution and generative-AI disclosure}
+Reference: Wu et al. (2021), \emph{Autoformer: Decomposition Transformers with Auto-Correlation for Long-Term Series Forecasting}; authors' code: \url{https://github.com/thuml/Autoformer}. Task 1 uses the supplied assignment harness; Task 2 replaces reference value/calendar embeddings with target/external-feature embeddings and supplies custom windowing, validation, training, checkpointing and forecast export.
+
+AI assistance was used for interpreting instructions, drafting Colab cells, diagnosing upload filename handling, designing the validation/ablation protocol, interpreting numerical outputs and preparing this draft. The visible prompts include ``start with task 2 of deep learning assignment'', the pasted upload-key error, experiment outputs, and ``proceed with the remaining parts''. Outputs included corrected CSV loading, data loaders, an Autoformer wrapper, training/ablation/refit cells and report text. The user executed the supplied cells and returned outputs. Upload-key handling was revised after Colab renamed an uploaded file. Historical-only ablation was added after the initial external-data comparison. \textcolor{red}{Before submission: append the exact relevant prompts/outputs (or a full transcript) and accurately state your own code edits and verification; do not claim unperformed independent checks.}
+
+\section*{Pending completion items}
+Insert the public repository URL;  preserve genuine Task 1 pre-run predictions if available; preferably execute Task 1 cleanly in one full-preset session; attach the numbered PDFs referenced here. The leaderboard receipt is recorded. This draft must be finalized before submission.
+\end{document}

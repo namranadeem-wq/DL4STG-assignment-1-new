@@ -1,0 +1,13 @@
+{
+  "roll_number": "25280097",
+  "rank_at_capture": 32,
+  "MAE": 68.5591,
+  "RMSE": 99.4716,
+  "sMAPE_percent": 81.04,
+  "score": 99.4801,
+  "parameters": 21953,
+  "epochs": 17,
+  "submissions_used": 1,
+  "submission_limit": 5,
+  "evidence": "leaderboard_receipt.png"
+}
